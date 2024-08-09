@@ -1,8 +1,10 @@
 ---
-title: "Mortalidad Historica"
+title: "Analisis Historico"
 author: "Federico Tricarico"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+  theme: journal
 ---
 
 ```{r setup, include=FALSE}
@@ -12,16 +14,18 @@ library(tidyverse)
 
 ## Presentacion
 
-...
+Importamos un archivo .csv, transformamos su estructura, analisis exploratorio, visualizacion y comunicacion.
 
 ### Import data
+
+Datos extraido de CITA REQUERIDA
 
 ```{r}
 data <- read.csv2("~/GitHub/mortalidad_historica/data/serie-historica-ocurrida-argentina-jurisdiccion-1914-2022.csv",
                   header = TRUE,
                   sep = ",")
 
-data
+glimpse(data)
 ```
 
 Se estima que `indice_tiempo` es anual, y que cada columna contiene las defunciones por jurisdiccion. 
@@ -34,22 +38,28 @@ Y dado que son 26 columnas, se estima que la primera es el año, la segunda el t
 Veamos los años, y la serie.
 
 ```{r}
+options(max.print = 10) #Solo ver 10 salidas
 unique(data$indice_tiempo)
 ```
 Extraemos solo los años, o primero cuatro caracteres de la cadena
 
-```{r}
-data$anio <- substr(data$indice_tiempo, 1, 4)
+```{r fechas, collapse=FALSE}
+data$anio <- substr(data$indice_tiempo, 1, 4) #desde el primero extrae 4
+
 unique(data$anio)
 
 data$anio <- as.integer(data$anio)
 class(data$anio)
 ```
 
-```{r}
+
+Con la libreria Tydir, podemos trasnformar las tablas, a lo ancho y a lo largo. Vease
+
+```{r consulta-tydir, echo=FALSE, eval=FALSE}
 help(pivot_longer)
 ```
 
+Pasamos las columnas de 2 a 26, a una columna llamada "jurisdiccion", y sus respectivos valores a una llamada "def"
 
 ```{r}
 data2 <- data |> 
