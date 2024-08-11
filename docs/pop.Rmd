@@ -1,0 +1,48 @@
+---
+title: "poblacion historica"
+author: "Federico Tricarico"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import data
+
+Con datos del Min de interior...
+
+```{r}
+datapob <- readxl::read_excel("~/GitHub/mortalidad_historica/data/poblacion-provincia-argentina-1914-2022.xlsx", 
+                              sheet = "Hoja1",
+                              range = "A1:K25")
+datapob
+```
+Ahora debemos transformar esta tabla. 
+
+```{r}
+poblacion_censos <- pivot_longer(datapob,
+                                 cols = 3:11,
+                                 names_to = "ronda_censal",
+                                 values_to = "poblacion")
+poblacion_censos
+```
+Los años estan como character, y deberian ser integer
+Veamos si tenemos el total
+
+```{r}
+#requiere scales() package
+grafico4 <- poblacion_censos |> 
+  group_by(ronda_censal) |> 
+  summarise(
+    pob_tot = sum(poblacion)
+  ) |> 
+  ggplot(aes(x=ronda_censal, y=pob_tot))+
+  geom_point(size = 2.5)+
+  geom_segment(aes(x=ronda_censal, xend = ronda_censal, y=pob_tot, yend = 0))+
+  scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))+
+  theme_bw()
+grafico4
+```
+
