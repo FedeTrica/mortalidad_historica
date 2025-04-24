@@ -28,39 +28,35 @@ data <- read.csv2("~/GitHub/mortalidad_historica/data/serie-historica-ocurrida-a
                   header = TRUE,
                   sep = ",")
 
-str(data)
-glimpse(data)
+
 ```
 
-Se estima que `indice_tiempo` es anual, y que cada columna contiene las defunciones por jurisdiccion. 
+Se estima que `indice_tiempo` es anual, y que cada columna contiene las defunciones por jurisdiccion.
 
 ```{r check-1}
 names(data)
 ```
-Y dado que son 26 columnas, se estima que la primera es el año, la segunda el total, y las restantes 24 cada una de las jurisdicciones.
+Y dado que son 26 columnas, sabemos que la primera es el año, la segunda el total, y las restantes 24 cada una de las jurisdicciones.
 
 Veamos los años, y la serie.
 
 ```{r check-2-años}
-options(max.print = 10) #Solo ver 10 salidas
-unique(data$indice_tiempo)
+#Veamos los primero 5 registros, 
+unique(data$indice_tiempo [1:5])
 ```
-Extraemos solo los años, o primero cuatro caracteres de la cadena
+Extraemos solo los años, o primero cuatro caracteres de la cadena.
 
 ```{r fechas, collapse=FALSE}
-data$anio <- substr(data$indice_tiempo, 1, 4) #desde el primero extrae 4
 
-unique(data$anio)
+data$anio <- as.integer(substr(data$indice_tiempo, 1, 4)) #desde el primero extrae 4
 
-data$anio <- as.integer(data$anio)
-class(data$anio)
 ```
 
 
-Con la libreria Tydir, podemos trasnformar las tablas, a lo ancho y a lo largo. Vease
+Con la libreria Tydir, podemos transformar las tablas, a lo ancho y a lo largo. Vease
 
-```{r consulta-tydir, echo=FALSE, eval=FALSE}
-#help(pivot_longer)
+```{r consulta-tydir, eval=FALSE, include=FALSE}
+# help(pivot_longer)
 #o usar en este caso la funcion melt() del paquete reshape2 
 ```
 
@@ -74,22 +70,20 @@ data2 <- data |>
                values_to = "def") |> 
   select(anio, jurisdiccion, def) |> 
   arrange()
-data2
+
+head(data2, n = 10 )
 ```
 Ahora si tenemos, la defunciones (registros) por jurisdiccion y año (variables o campos).
 
-```{r}
-unique(data2$jurisdiccion)
-```
-
 ### Dataviz
 
-un grafico de ggplot funciona por capas
-...
+Un grafico de ggplot funciona por capas. Ver ... 
 
-antes un library scales
-```{r}
+
+```{r setup2, eval = FALSE, include = FALSE}
+#antes un library scales
 #library(scales)
+
 ```
 
 ```{r}
@@ -97,11 +91,14 @@ grafico1 <- data2 |>
   filter(jurisdiccion=="republica_argentina") |> 
   ggplot()+
   geom_line(aes(anio, def))+
-  scale_y_continuous(labels = unit_format(unit = "m", scale = 1e-3))
+  scale_y_continuous(labels = unit_format(unit = "m", scale = 1e-3))+
+  ylab("defunciones (en miles)")+
+  xlab("Años")+
+  theme_bw()
 grafico1
 ```
 
-```{r}
+```{r NAs-por-Ceros}
 #help("coalesce")
 #usamos una funcion de dplyr para convertir 0 en NA
 #los valores de ciertas jurisdicciones que hayan tenido 0 defunciones...
@@ -109,21 +106,22 @@ grafico1
 data2$def <- na_if(data2$def, 0)
 summary(data2)
 ```
+Ahora volvemos a hacer el grafico. Y agregamos una linea de tendencia que complete el blanco.
 
-
-```{r}
+```{r grafico-1}
 grafico1 <- data2 |> 
   filter(jurisdiccion=="republica_argentina") |> 
   ggplot( aes(anio, def))+
   geom_line(linetype = 2)+
-  geom_smooth(method = "glm", colour = "black", se = FALSE)+
+  geom_smooth(method = "lm", colour = "black",linewidth = .5, se = FALSE)+
   scale_y_continuous(labels = unit_format(unit = "m", scale = 1e-3))+
-  ggtitle("Evolucion de las defunciones totales Rep Arg 1914-2023")+
+  ggtitle("Evolucion de las defunciones totales Rep. Arg. 1914-2023")+
   ylab("defunciones (en miles)")+
   xlab("Años")
   
 grafico1
 ```
+
 Veamos otro grafico donde se vean por provincias
 
 ```{r}
@@ -132,6 +130,9 @@ filter(jurisdiccion!="republica_argentina") |>
 ggplot(aes(x=anio, y=def, group = jurisdiccion, color=jurisdiccion))+
 geom_line()+
 scale_y_log10()+
+  ggtitle("Evolucion de las defunciones por Jurisdiccion 1914-2022")+
+  ylab("Log10 defunciones")+
+  xlab("Años")+
 scale_color_viridis(discrete=TRUE)
 grafico2
 
@@ -152,30 +153,33 @@ grafico2
 #    scale_color_viridis(discrete=TRUE)
 # grafico2
 ```
-Veamos un caso particular
+Tenemos que resolver un caso un tanto particular, relacionado con la nomenclatura de las jurisdicciones.
 
-```{r}
+```{r provincias-unicas, collapse=TRUE}
 provincias <- data2 |> 
   select(jurisdiccion) |> 
   filter(jurisdiccion !="republica_argentina") |> 
   unique()
 provincias
 #escrribimos un 
-
 #write_excel_csv(provincias, "~/GitHub/mortalidad_historica/provincias.csv")
 ```
-Ahora si queremos ver un mapa, o cuando debamos unir los datos de poblacion por provincia...
-necesitamos un codigo unico, o el mismo exacto nombre.
-para eviatr problemas o mayores esfuerzos, utilizamos la libreria GeoAr
-```{r}
 
-normalizados <- get_provincias(nombre = provincias$jurisdiccion[3], max = 1)
+Ahora si queremos ver un mapa, o cuando debamos unir los datos de poblacion por provincia...
+necesitamos un codigo unico, o el mismo exacto nombre en la tabla relacionada.  
+
+Para evitar problemas o mayores esfuerzos, crearon la libreria GeoAr
+
+```{r}
+#library(GeoAr)
+normalizados <- get_provincias(nombre = provincias$jurisdiccion[3], max = 1) #recuperamos el tercer registro
 normalizados
 
 ```
-Encuentra Catamarca, pero buenos_aires
+
+Encuentra Catamarca, pero buenos_aires no.
 No se esperaban nombres separados por guion bajo?
-Entonces quitemos el guio bajo.
+Entonces quitemos el guion bajo.
 
 ```{r}
 provincias <- provincias |> 
@@ -184,6 +188,7 @@ provincias <- provincias |>
   )
 provincias
 ```
+
 Y ahora?
 
 ```{r}
@@ -192,6 +197,7 @@ normalizados <- get_provincias(nombre = provincias$provincia[1], max = 1)
 normalizados
 
 ```
+
 Ahora en el mismo tutorial vemos como convertir esta lista en una nueva. Mediante una funcion, y luego aplicada a la tabla.
 
 ```{r funcion}
@@ -201,8 +207,10 @@ normalizar <- function(base){
   tmp <- get_provincias(nombre = base, max = 1)
 
   tmp$nombre #o tmp$id si lo que se quiere es el codigo INDEC
-}
+  #tmp$id 
+  }
 ```
+
 Aplicamos esta funcion al listado
 
 ```{r}
@@ -213,56 +221,62 @@ Aplicamos esta funcion al listado
                           )
          ))
 
-lista_normalizada
+head(lista_normalizada, n= 3)
 ```
-Ahora que sabemos que hemos obtenido el nombre de acuerdo a los datos normalizados, se puede obtener ademas, la coord del centroide, y otras..
+Ahora que sabemos que hemos obtenido el nombre de acuerdo a los datos normalizados, se puede obtener ademas, la coord del centroide, y el id (codigo geografico de INDEC).
 
-Veo que le paquete trae un dataset llamado `geo_metadata` y la funcion `show_arg_codes()`
-```{r dataset-pauqete, echo=FALSE, eval=FALSE}
+El paquete trae un dataset llamado `geo_metadata` y la funcion `show_arg_codes()`
+
+```{r dataset-paquete, echo=FALSE, eval=FALSE}
 summary(geo_metadata)
 ```
 
-necesito el codprov_censo o 4ta columna
 
-uniendo geo_metadata$name_iso
-
-O alternativamente, extraer la geo de cada provincia y desde ahi obtener a la inversa los codigos...
+Otra alternativa, es extraer la cartografia vectorial de cada provincia y desde ahi obtener (a la inversa, _enriquecer_) los codigos...
 
 
-```{r}
+```{r get-geo}
 geo_provincias <- get_geo(geo = "ARGENTINA", level = "provincia")
-plot(geo_provincias) #Debiera inlcuir antartida, separado. Pensar en incluir otras cartografia y proyecciones
+plot(geo_provincias) 
+#Debiera inlcuir la Proyeccion a Antartida y la Islas por separado aproximado en la vista.
+#Pensar en incluir otras cartografia (se sumo la de 1980-2010) y otras proyecciones (3857, 4326, posgar)
 
 ```
 
-y ahora obtengo los codigos desde este conjunto de datos...
+Desde esta tabla `geo_provincias` se puede obtener los codigos desde este conjunto de datos...
 
 ```{r}
 provincias_datos <- geo_provincias |> 
   add_geo_codes()
 provincias_datos
 ```
-Ahora creamos un nuevo dataset del original, uniendo los nombres con los normalizados.
-y luego con esta tabla que obtuvimos al final.
+
+Ahora creamos un nuevo dataset del original, con los nombres normalizados. y Luego uniendo los nombres de nuestro dataset con las que contiene los nombres  normalizados, codigos y geometria.
+
+
 ```{r}
 names(provincias_datos)
 ```
-
+Haremos dos `left_join`
 
 ```{r}
 data3 <- left_join(data2, lista_normalizada, by= "jurisdiccion") |> 
   filter(jurisdiccion!="republica_argentina") |> 
   select(anio, def, normalizada) 
-data3
+head(data3, n=5)
 ```
 
 
 ```{r}
 data4 <-  left_join(data3, provincias_datos, by= c("normalizada" = "name_iso" )) |> 
   select(1:4)
+
+#renombramos las variables
 names(data4) <- c("anio", "defunciones", "provincia", "codigo")
-data4
+
+head(data4, n = 5)
 ```
+
 Ahora vemoas la evolucion en cada provincia
 
 ```{r}
@@ -281,7 +295,13 @@ grafico3
 
 ## Pendientes
 
+- Mostrar geofacet con grilla de Rep Argentina
+- Craer un grafico Plotly donde ver cada provincia de manera interactiva
+- JointPoint?
+- ¿Qué pasa con CABA que baja despues de '80?
 
-- Datos de poblacion
-- Censos
-- Poblacion por años
+- Datos de poblacion  
+En un nuevo .rmd, los censos historicos y una interpolacion, para obtener:
+- Poblacion total por jurisdiccion estimada por año 1914-2022
+
+

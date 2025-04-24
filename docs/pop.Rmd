@@ -7,6 +7,11 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggupset)
+library(scales)
+library(hrbrthemes)
+library(viridis)
 ```
 
 ## Import data
@@ -26,7 +31,9 @@ poblacion_censos <- pivot_longer(datapob,
                                  cols = 3:11,
                                  names_to = "ronda_censal",
                                  values_to = "poblacion")
+
 poblacion_censos
+
 ```
 Los años estan como character, y deberian ser integer
 Veamos si tenemos el total
@@ -46,3 +53,144 @@ grafico4 <- poblacion_censos |>
 grafico4
 ```
 
+Para ver la provincias podemos usar un geofacet
+
+```{r}
+#requiere scales() package
+grafico4_1 <- poblacion_censos |> 
+  ggplot(aes(x=ronda_censal, y=poblacion))+
+  geom_point(size = 2.5)+
+  geom_segment(aes(x=ronda_censal, xend = ronda_censal, y=poblacion, yend = 0))+
+  facet_wrap(~Provincia)+
+  scale_y_log10()+
+  #scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))+
+  theme_bw()
+grafico4_1
+```
+Nos interesan particularmente los casos de :
+
+- Territorios Nacionales (Chaco y Patagonia)  
+- Variaciones intercensales Negativas (Tucuman)  
+- Las diferencias en el orden magnitud, posibilidad de regionalizar
+
+```{r}
+grafico4_2 <- poblacion_censos |> 
+  ggplot(aes(x=ronda_censal, y=poblacion, color=Provincia))+
+  geom_point(size = 2.5)+
+  geom_segment(aes(x=ronda_censal, xend = ronda_censal, y=poblacion, yend = 0))+
+  facet_wrap(~Region)+
+  scale_y_log10()+
+  #scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))+
+  scale_x_discrete(position = "bottom")+
+  theme_bw()
+grafico4_2
+```
+
+Para ver un grafico por regiones apiladas por hacer geom_area, y ver apilado
+
+```{r data-transform}
+poblacion_censos$ronda_censal <- as.integer(poblacion_censos$ronda_censal)
+```
+
+
+```{r}
+# grafico5 <- poblacion_censos |>
+#   ggplot(aes(x=ronda_censal, y=poblacion, group = Region, fill = Region))+
+#   geom_bar(position="stack", stat="identity")+
+#   scale_fill_viridis(discrete = T)+
+#   scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))+
+#   theme_ipsum()
+# 
+# 
+# grafico5
+  #geom_bar position, dodge, stack or fill
+```
+Ahora, como estimar una poblacion para cada año? 
+Se requiere una `funcion` de interpolacion lineal o spline para cada provincia.
+y una serie con los años de destino de 1914-2022
+
+```{r}
+serie_tiempo <- seq(1914, 2022, by=1)
+
+```
+
+creamos una funcion
+```{r}
+interpol <- function(data) {
+  #Lineal
+  interp_lineal <- approx(data$ronda_censal, data$poblacion, xout = serie_tiempo)$y
+  #Spline
+  interp_spline <- spline(data$ronda_censal, data$poblacion, xout = serie_tiempo)$y
+  
+  #creacion de dataframe
+  
+  pop_intepol <- data.frame(
+    Year = serie_tiempo,
+    estimada_lineal = interp_lineal,
+    estimada_spline = interp_spline
+  )
+  
+  return(pop_intepol)
+}
+
+```
+Ahora aplicamos esta funcion al dataframe de origen de los datos.
+
+```{r}
+poblacion_interp <- poblacion_censos |> 
+  group_by(Provincia) |> 
+  group_modify(~interpol(.x))
+```
+
+Veamos el resultado
+```{r}
+poblacion_interp
+```
+Rapidamente puede verse que al menos en el caso de CABA la variacion que se observaba entre 1914-1947, se ve _profundizada_ en la medida que a partir de 1915 la poblacion empieza a descender...Vemoslo en un grafico y luego veamos entonces la performance de la lineal.
+
+```{r}
+grafico5 <- poblacion_interp |> 
+  group_by(Year) |> 
+  summarise(
+    poblacion_total_l = sum(estimada_lineal),
+    poblacion_total_sp = sum(estimada_spline)
+  ) |> 
+  ggplot()+
+  geom_line(aes(x=Year, y=poblacion_total_l, colour = "blue"))+
+  geom_line(aes(x=Year, y=poblacion_total_sp, colour = "red"))+
+  theme_bw()
+grafico5
+```
+Como se observa en el grafico, spline es mas sensible, que se denota por la pendiente al inicio de la serie.
+
+```{r}
+grafico6 <- poblacion_interp |> 
+  ggplot()+
+  geom_line(aes(x=Year, y=estimada_lineal))+
+  scale_y_log10()+
+  facet_wrap(~Provincia)
+grafico6
+```
+
+- Revisar el caso de Tucuman y de CABA entre 1914-1947
+
+## Notas
+
+Funciona bien el ajuste lineal aunque no sea el mejor.  
+Para ajustar por edad y sexo, se puede usar `interp` del paquete DemoTools que aplica el metodo de AGEINT de PAS.
+
+### Pendientes
+
+- Unir dataset de poblacion estimada (interpolacion lineal) al dataset de defunciones
+- Estimar la Tasa Bruta de Mortalidad
+- Seleccionar indicadores para hacer comparaciones y analizar la evolucion:
+    - Variabilidad o Convergencia?
+    - Mapas
+    - Series Temporales
+    - Serie Espacio Temporal
+    - Enumerar episodios de enfermedad relevantes (epidemias)
+    - Meta analisis de censos historicos por provincia
+  
+#### Proyecto siguiente
+
+- Construir dataset de poblacion por edad y sexo con residencia habitual por provincia, para los censos, y usar interp para interpolar la poblacion, Luego solicitar datos de defunciones por provincia por edad y sexo,
